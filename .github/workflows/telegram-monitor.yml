@@ -1,0 +1,55 @@
+name: Telegram keyword monitor
+
+on:
+  schedule:
+    - cron: "2-57/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-keyword-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check out public code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Restore last-seen message state
+        uses: actions/cache/restore@v4
+        with:
+          path: .state
+          key: telegram-state-${{ github.run_id }}
+          restore-keys: |
+            telegram-state-
+
+      - name: Check channels and send alerts
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ALERT_CHAT_ID: ${{ secrets.ALERT_CHAT_ID }}
+          CONFIG_JSON: ${{ secrets.CONFIG_JSON }}
+        run: python monitor.py
+
+      - name: Save last-seen message state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .state
+          key: telegram-state-${{ github.run_id }}
