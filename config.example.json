@@ -1,0 +1,23 @@
+{
+  "channels": [
+    "@example_channel"
+  ],
+  "keywords": [
+    "속보",
+    "긴급",
+    "breaking news"
+  ],
+  "urgent_keywords": [
+    "속보",
+    "breaking",
+    "urgent"
+  ],
+  "exclude_keywords": [
+    "광고",
+    "협찬"
+  ],
+  "regex_patterns": [],
+  "match_mode": "any",
+  "max_messages_per_channel": 100
+}
+
