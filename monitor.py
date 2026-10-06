@@ -17,7 +17,7 @@ from typing import Any
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
-from matching import match_message
+from matching import extract_title, match_message
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,7 @@ class Settings:
     regex_patterns: list[str]
     match_mode: str
     max_messages_per_channel: int
+    stock_aliases: dict[str, list[str]]
 
 
 def _string_list(data: dict[str, Any], name: str) -> list[str]:
@@ -54,6 +55,16 @@ def load_settings() -> Settings:
     if not 1 <= max_messages <= 500:
         raise ValueError("max_messages_per_channel must be between 1 and 500")
 
+    stock_aliases = data.get("stock_aliases", {})
+    if not isinstance(stock_aliases, dict) or any(
+        not isinstance(name, str) or not isinstance(aliases, list)
+        or any(not isinstance(alias, str) or not alias.strip() for alias in aliases)
+        for name, aliases in stock_aliases.items()
+    ):
+        raise ValueError("stock_aliases must map stock names to lists of nonempty strings")
+    if str(data.get("match_mode", "any")) not in ("any", "all"):
+        raise ValueError("match_mode must be 'any' or 'all'")
+
     return Settings(
         channels=channels,
         keywords=_string_list(data, "keywords"),
@@ -62,6 +73,7 @@ def load_settings() -> Settings:
         regex_patterns=_string_list(data, "regex_patterns"),
         match_mode=str(data.get("match_mode", "any")),
         max_messages_per_channel=max_messages,
+        stock_aliases=stock_aliases,
     )
 
 
@@ -140,6 +152,7 @@ def alert_text(channel_name: str, message: Any, reasons: tuple[str, ...], link: 
         "🚨 <b>키워드 뉴스 알림</b>\n\n"
         f"<b>채널:</b> {html.escape(channel_name)}\n"
         f"<b>감지:</b> {html.escape(reason_text)}\n"
+        f"<b>기사 제목:</b> {html.escape(extract_title(message)[:500])}\n"
         f"<b>시간:</b> {html.escape(message.date.astimezone().strftime('%Y-%m-%d %H:%M'))}\n\n"
         f"{html.escape(body)}\n\n"
         f'<a href="{html.escape(link, quote=True)}">원문 열기</a>'
@@ -194,12 +207,13 @@ async def run() -> int:
                 for message in messages:
                     highest_seen = max(highest_seen, int(message.id))
                     result = match_message(
-                        message.message or "",
+                        extract_title(message),
                         keywords=settings.keywords,
                         urgent_keywords=settings.urgent_keywords,
                         exclude_keywords=settings.exclude_keywords,
                         regex_patterns=settings.regex_patterns,
                         match_mode=settings.match_mode,
+                        stock_aliases=settings.stock_aliases,
                     )
                     if not result.matched:
                         continue
@@ -251,4 +265,3 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"Fatal error: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1)
-
